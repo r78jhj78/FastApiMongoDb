@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: camcook-api
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
+    envVars:
+      - key: DATABASE_URL
+        value: "postgresql://cookcambd_user:HOM6Vqk6KneG5hCdBSYPSybYo1BBaf5W@dpg-d3aafkidbo4c738ls860-a.oregon-postgres.render.com/cookcambd"
