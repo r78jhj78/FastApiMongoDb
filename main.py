@@ -8,7 +8,6 @@ from pymongo import MongoClient
 from passlib.context import CryptContext
 import jwt
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
@@ -19,16 +18,19 @@ SECRET_KEY = os.getenv("JWT_SECRET", "cambiame_por_una_clave_segura_en_prod")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 días
 
-# Selección de URL: dentro de Railway usar MONGO_URL, local use MONGO_PUBLIC_URL
+# Selección de URL y nombre de DB
 MONGO_CONN = os.getenv("MONGO_URL") or os.getenv("MONGO_PUBLIC_URL")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 if not MONGO_CONN:
     raise RuntimeError("No se encontró MONGO_URL ni MONGO_PUBLIC_URL en variables de entorno")
+if not MONGO_DB_NAME:
+    raise RuntimeError("No se encontró MONGO_DB_NAME en variables de entorno")
 
 # ---------------------------
 # MongoDB
 # ---------------------------
 client = MongoClient(MONGO_CONN)
-db = client.get_database()  # usa la DB por defecto de la URL o la que proporcione Mongo URI
+db = client[MONGO_DB_NAME]  # Selecciona la base de datos explícitamente
 
 users_col = db["users"]
 recipes_col = db["recipes"]
@@ -100,13 +102,12 @@ def create_user(username: str, email: Optional[str], password: str):
     if get_user_by_username(username):
         raise HTTPException(400, "Usuario ya existe")
     hashed = hash_password(password)
-    # ID simple: usar username como _id para simplicidad. En prod use ObjectId.
     user_doc = {
-        "_id": username,  # simple único
+        "_id": username,
         "username": username,
         "email": email,
         "password": hashed,
-        "role": "usuario",   # <-- comportamiento solicitado: siempre "usuario" al crear
+        "role": "usuario",
         "created_at": datetime.utcnow().isoformat()
     }
     users_col.insert_one(user_doc)
@@ -135,9 +136,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 # ---------------------------
 @app.post("/auth/register", response_model=UserOut)
 def register(user: UserCreate):
-    """
-    Registro: siempre crea el usuario con role = 'usuario'.
-    """
     doc = create_user(user.username, user.email, user.password)
     return UserOut(
         id=doc["_id"],
@@ -148,9 +146,6 @@ def register(user: UserCreate):
 
 @app.post("/auth/login", response_model=TokenResponse)
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    """
-    Login: devuelve JWT. Form-data: username, password
-    """
     user = authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(status_code=400, detail="Usuario o contraseña inválidos")
@@ -167,23 +162,16 @@ def me(current_user=Depends(get_current_user)):
 
 @app.post("/users/upgrade", response_model=UserOut)
 def upgrade_role(req: RoleChangeRequest, current_user=Depends(get_current_user)):
-    """
-    Permite al usuario actualizar su rol a 'chef' o 'proveedor'.
-    Si en el futuro quieres que admin apruebe, cambia la lógica para
-    crear un documento 'pending' en recipes/profiles.
-    """
     new_role = req.new_role.lower()
     if new_role not in ("chef", "proveedor"):
         raise HTTPException(400, "Rol inválido. Solo 'chef' o 'proveedor'")
-
-    # Actualiza en DB
     users_col.update_one({"_id": current_user["_id"]}, {"$set": {"role": new_role}})
     updated = get_user_by_username(current_user["username"])
     return UserOut(id=updated["_id"], username=updated["username"],
                    email=updated.get("email"), role=updated["role"])
 
 # ---------------------------
-# Simple recipes & providers endpoints (base)
+# Simple recipes & providers endpoints
 # ---------------------------
 class RecipeCreate(BaseModel):
     title: str
@@ -193,7 +181,6 @@ class RecipeCreate(BaseModel):
 
 @app.post("/recipes")
 def create_recipe(recipe: RecipeCreate, current_user=Depends(get_current_user)):
-    # Only chefs (or admins) can upload recipes on web — enforce if needed:
     if current_user["role"] not in ("chef", "admin"):
         raise HTTPException(403, "Solo chefs (o admin) pueden subir recetas")
     doc = {
@@ -202,7 +189,7 @@ def create_recipe(recipe: RecipeCreate, current_user=Depends(get_current_user)):
         "ingredients": recipe.ingredients,
         "steps": recipe.steps,
         "chef": recipe.chef_username or current_user["username"],
-        "approved": False,  # pendiente de aprobación por admin
+        "approved": False,
         "created_at": datetime.utcnow().isoformat()
     }
     recipes_col.insert_one(doc)
@@ -212,7 +199,6 @@ def create_recipe(recipe: RecipeCreate, current_user=Depends(get_current_user)):
 def list_recipes(q: Optional[str] = None):
     query = {}
     if q:
-        # búsqueda simple por título o ingrediente
         query["$or"] = [
             {"title": {"$regex": q, "$options": "i"}},
             {"ingredients": {"$regex": q, "$options": "i"}}
@@ -220,7 +206,6 @@ def list_recipes(q: Optional[str] = None):
     docs = list(recipes_col.find(query, {"_id": 1, "title": 1, "chef": 1, "approved": 1}))
     return docs
 
-# Providers endpoints
 class ProviderCreate(BaseModel):
     name: str
     contact: str
@@ -229,7 +214,6 @@ class ProviderCreate(BaseModel):
 
 @app.post("/providers")
 def create_provider(provider: ProviderCreate, current_user=Depends(get_current_user)):
-    # Solo usuarios con rol 'proveedor' pueden crear su ficha
     if current_user["role"] != "proveedor":
         raise HTTPException(403, "Solo usuarios con rol 'proveedor' pueden crear proveedor")
     doc = {
@@ -254,7 +238,6 @@ def list_providers():
 # ---------------------------
 @app.on_event("startup")
 def startup():
-    # create indexes simple (opcional)
     users_col.create_index("username", unique=True)
     print("✅ API arrancada. Conexión a Mongo OK.")
 
