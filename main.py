@@ -513,76 +513,85 @@
 #     print("🔴 Conexión Mongo cerrada.")
 
 
-import os
-from datetime import datetime, timedelta
-from typing import Optional
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from pydantic import BaseModel, Field, EmailStr
-from pymongo import MongoClient
-from passlib.context import CryptContext
-import jwt
-from dotenv import load_dotenv
+# import os
+# from datetime import datetime, timedelta
+# from typing import Optional
+# from fastapi import FastAPI, HTTPException, Depends
+# from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+# from pydantic import BaseModel, Field, EmailStr
+# from pymongo import MongoClient
+# from passlib.context import CryptContext
+# import jwt
+# from dotenv import load_dotenv
 
-load_dotenv()
+# load_dotenv()
 
-# ---------------------------
-# Config
-# ---------------------------
-SECRET_KEY = os.getenv("JWT_SECRET", "cambiame_por_una_clave_segura_en_prod")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 días
+# # ---------------------------
+# # Config
+# # ---------------------------
+# SECRET_KEY = os.getenv("JWT_SECRET", "cambiame_por_una_clave_segura_en_prod")
+# ALGORITHM = "HS256"
+# ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 días
 
-MONGO_CONN = os.getenv("MONGO_URL") or os.getenv("MONGO_PUBLIC_URL")
-if not MONGO_CONN:
-    raise RuntimeError("No se encontró MONGO_URL ni MONGO_PUBLIC_URL en variables de entorno")
+# MONGO_CONN = os.getenv("MONGO_URL") or os.getenv("MONGO_PUBLIC_URL")
+# if not MONGO_CONN:
+#     raise RuntimeError("No se encontró MONGO_URL ni MONGO_PUBLIC_URL en variables de entorno")
 
-DB_NAME = os.getenv("DB_NAME", "camcook")
+# DB_NAME = os.getenv("DB_NAME", "camcook")
 
-# ---------------------------
-# MongoDB
-# ---------------------------
-client = MongoClient(MONGO_CONN)
-db = client[DB_NAME]  # explicitamente seleccionamos la DB
+# # ---------------------------
+# # MongoDB
+# # ---------------------------
+# client = MongoClient(MONGO_CONN)
+# db = client[DB_NAME]  # explicitamente seleccionamos la DB
 
-users_col = db["users"]
-recipes_col = db["recipes"]
-providers_col = db["providers"]
+# users_col = db["users"]
+# recipes_col = db["recipes"]
+# providers_col = db["providers"]
 
-# ---------------------------
-# Security utilities
-# ---------------------------
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# # ---------------------------
+# # Security utilities
+# # ---------------------------
+# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+# def hash_password(password: str) -> str:
+#     return pwd_context.hash(password)
 
-def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+# def verify_password(plain: str, hashed: str) -> bool:
+#     return pwd_context.verify(plain, hashed)
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+# def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+#     to_encode = data.copy()
+#     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+#     to_encode.update({"exp": expire})
+#     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def decode_token(token: str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expirado")
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Token inválido")
+# def decode_token(token: str):
+#     try:
+#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#         return payload
+#     except jwt.ExpiredSignatureError:
+#         raise HTTPException(status_code=401, detail="Token expirado")
+#     except jwt.PyJWTError:
+#         raise HTTPException(status_code=401, detail="Token inválido")
 
-# ---------------------------
-# FastAPI app
-# ---------------------------
-app = FastAPI(title="Cam Cook - API (FastAPI + MongoDB)")
+# # ---------------------------
+# # FastAPI app
+# # ---------------------------
+# app = FastAPI(title="Cam Cook - API (FastAPI + MongoDB)")
 
-# Aquí puedes copiar el resto de tu código: CRUD de usuarios, login, recetas, proveedores...
-# Endpoint raíz simple para probar la API
+# # Aquí puedes copiar el resto de tu código: CRUD de usuarios, login, recetas, proveedores...
+# # Endpoint raíz simple para probar la API
+# @app.get("/")
+# def root():
+#     return {"message": "API CamCook funcionando ✅"}
+
+from fastapi import FastAPI
+from config import SECRET_KEY
+
+app = FastAPI()
+
 @app.get("/")
-def root():
-    return {"message": "API CamCook funcionando ✅"}
+def read_root():
+    return {"secret_key": SECRET_KEY}  # solo para prueba
