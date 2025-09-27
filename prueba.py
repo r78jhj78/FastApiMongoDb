@@ -4,8 +4,8 @@ def probar_envio(usuario, password):
     url = "https://fastapimongodb-production.up.railway.app/login"
 
     datos = {
-        "usuario": usuario,
-        "password": password
+        "username": usuario,
+        "username": password
     }
 
     print("Datos que se enviarán:")
