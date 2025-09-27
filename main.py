@@ -59,13 +59,12 @@ def truncate_password(password: str, max_bytes: int = 72) -> str:
 
 
 def hash_password(password: str) -> str:
-    password = truncate_password(password)
-    print(f"Hashing password: '{password}' Length in bytes: {len(password.encode('utf-8'))}")
+    if len(password.encode("utf-8")) > 72:
+        password = truncate_password(password)
     return pwd_context.hash(password)
 
-def verify_password(plain: str, hashed: str) -> bool:
-    plain = truncate_password(plain)
-    return pwd_context.verify(plain, hashed)
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -135,11 +134,11 @@ def create_user(username: str, email: Optional[str], password: str):
     if get_user_by_username(username):
         raise HTTPException(400, "Usuario ya existe")
 
-    if len(password.encode('utf-8')) > 72:
-        raise HTTPException(
-            status_code=400,
-            detail="La contraseña es demasiado larga. Debe tener máximo 72 bytes."
-        )
+    # if len(password.encode('utf-8')) > 72:
+    #     raise HTTPException(
+    #         status_code=400,
+    #         detail="La contraseña es demasiado larga. Debe tener máximo 72 bytes."
+    #     )
 
     hashed = hash_password(password)
     user_doc = {
