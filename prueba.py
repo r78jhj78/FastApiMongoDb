@@ -1,11 +1,12 @@
 import requests
 
-def probar_envio(usuario, password):
-    url = "https://fastapimongodb-production.up.railway.app/login"
+def probar_envio(usuario, password,email):
+    url = "https://fastapimongodb-production.up.railway.app/auth/register"
 
     datos = {
         "username": usuario,
-        "username": password
+        "password": password,
+        "email": email
     }
 
     print("Datos que se enviarán:")
@@ -25,5 +26,6 @@ def probar_envio(usuario, password):
 if __name__ == "__main__":
     usuario = input("Usuario: ")
     password = input("Contraseña: ")
+    email = input("Email: ")
 
-    probar_envio(usuario, password)
+    probar_envio(usuario, password,email)
