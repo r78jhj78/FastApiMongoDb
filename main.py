@@ -47,6 +47,8 @@ def truncate_password(password: str, max_bytes: int = 72) -> str:
     if len(encoded) <= max_bytes:
         return password
 
+    print(f"⚠️ Truncando contraseña: {len(encoded)} bytes > {max_bytes} bytes")
+
     # Truncar byte a byte sin romper UTF-8
     truncated = encoded[:max_bytes]
     while True:
@@ -55,13 +57,16 @@ def truncate_password(password: str, max_bytes: int = 72) -> str:
         except UnicodeDecodeError:
             truncated = truncated[:-1]
 
+
 def hash_password(password: str) -> str:
     password = truncate_password(password)
     print(f"Hashing password: '{password}' Length in bytes: {len(password.encode('utf-8'))}")
     return pwd_context.hash(password)
 
 def verify_password(plain: str, hashed: str) -> bool:
+    plain = truncate_password(plain)
     return pwd_context.verify(plain, hashed)
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -129,6 +134,13 @@ def get_user_by_username(username: str):
 def create_user(username: str, email: Optional[str], password: str):
     if get_user_by_username(username):
         raise HTTPException(400, "Usuario ya existe")
+
+    if len(password.encode('utf-8')) > 72:
+        raise HTTPException(
+            status_code=400,
+            detail="La contraseña es demasiado larga. Debe tener máximo 72 bytes."
+        )
+
     hashed = hash_password(password)
     user_doc = {
         "_id": username,
