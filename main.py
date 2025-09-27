@@ -335,6 +335,8 @@ import jwt
 from dotenv import load_dotenv
 from fastapi import Query
 from pydantic import BaseModel, EmailStr, validator
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import Form
 
 # ---------------------------
 # Cargar variables de entorno
@@ -360,7 +362,7 @@ providers_col = db["providers"]
 # Seguridad
 # ---------------------------
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login_json")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 app = FastAPI()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 MAX_PASSWORD_LENGTH = 72
@@ -537,18 +539,14 @@ async def register(user: RegisterRequest):
         role="usuario"
     )
 
-@app.post("/auth/login_json", response_model=TokenResponse)
-async def login_json(request: LoginRequest):
-    user = users_db.get(request.username)
-    if not user:
+@app.post("/auth/login", response_model=TokenResponse)
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = get_user_by_username(form_data.username)
+    if not user or not verify_password(form_data.password, user["password"]):
         raise HTTPException(status_code=400, detail="Usuario o contraseña incorrectos")
 
-    if not verify_password(request.password, user["hashed_password"]):
-        raise HTTPException(status_code=400, detail="Usuario o contraseña incorrectos")
-
-    token = create_access_token(request.username)
-    return TokenResponse(access_token=token, token_type="bearer")
-
+    access_token = create_access_token(data={"sub": user["username"]})
+    return TokenResponse(access_token=access_token, token_type="bearer")
 
 # ---------------------------
 # User endpoints
