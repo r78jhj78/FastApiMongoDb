@@ -334,6 +334,7 @@ from passlib.context import CryptContext
 import jwt
 from dotenv import load_dotenv
 from fastapi import Query
+from pydantic import BaseModel, EmailStr, validator
 
 # ---------------------------
 # Cargar variables de entorno
@@ -360,18 +361,17 @@ providers_col = db["providers"]
 # ---------------------------
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-
+app = FastAPI()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+MAX_PASSWORD_LENGTH = 72
 
 def hash_password(password: str) -> str:
-    # Bcrypt trunca automáticamente a 72 bytes, pero evitamos error explícitamente
-    encoded = password.encode("utf-8")
-    if len(encoded) > 72:
-        password = encoded[:72].decode("utf-8", errors="ignore")
-    return pwd_context.hash(password)
-
+    trimmed_password = password[:MAX_PASSWORD_LENGTH]
+    return pwd_context.hash(trimmed_password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    trimmed_password = plain_password[:MAX_PASSWORD_LENGTH]
+    return pwd_context.verify(trimmed_password, hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -433,10 +433,39 @@ class LoginInput(BaseModel):
     username: str
     password: str
 
+class RegisterRequest(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+
+    @validator('username')
+    def username_length(cls, v):
+        if len(v) < 3:
+            raise ValueError('El nombre de usuario debe tener al menos 3 caracteres')
+        return v
+
+    @validator('password')
+    def password_length(cls, v):
+        if len(v) < 6:
+            raise ValueError('La contraseña debe tener al menos 6 caracteres')
+        return v
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    email: Optional[EmailStr]
+    role: str
+
+
 
 # ---------------------------
 # FastAPI App
 # ---------------------------
+users_db = {}
 app = FastAPI(title="Cam Cook API")
 
 
@@ -484,29 +513,37 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 # ---------------------------
 # Endpoints de Auth
 # ---------------------------
-@app.post("/auth/register", response_model=UserOut)
-def register(user: UserCreate):
-    try:
-        doc = create_user(user.username, user.email, user.password)
-        return UserOut(
-            id=doc["_id"],
-            username=doc["username"],
-            email=doc.get("email"),
-            role=doc["role"]
-        )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
+@app.post("/auth/register", response_model=UserResponse)
+async def register(user: RegisterRequest):
+    if user.username in users_db:
+        raise HTTPException(status_code=400, detail="Usuario ya existe")
 
+    hashed_password = hash_password(user.password)
+    users_db[user.username] = {
+        "username": user.username,
+        "email": user.email,
+        "hashed_password": hashed_password,
+        "role": "user"
+    }
+
+    return UserResponse(
+        id=user.username,
+        username=user.username,
+        email=user.email,
+        role="user"
+    )
 
 @app.post("/auth/login_json", response_model=TokenResponse)
-def login_json(data: LoginInput):
-    user = authenticate_user(data.username, data.password)
+async def login_json(request: LoginRequest):
+    user = users_db.get(request.username)
     if not user:
-        raise HTTPException(400, "Usuario o contraseña inválidos")
-    token = create_access_token({"sub": user["username"], "role": user["role"]})
-    return TokenResponse(access_token=token)
+        raise HTTPException(status_code=400, detail="Usuario o contraseña incorrectos")
+
+    if not verify_password(request.password, user["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Usuario o contraseña incorrectos")
+
+    token = create_access_token(request.username)
+    return TokenResponse(access_token=token, token_type="bearer")
 
 
 # ---------------------------
