@@ -360,7 +360,7 @@ providers_col = db["providers"]
 # Seguridad
 # ---------------------------
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login_json")
 app = FastAPI()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 MAX_PASSWORD_LENGTH = 72
@@ -515,22 +515,26 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 # ---------------------------
 @app.post("/auth/register", response_model=UserResponse)
 async def register(user: RegisterRequest):
-    if user.username in users_db:
+    # Verificar si ya existe el usuario
+    if get_user_by_username(user.username):
         raise HTTPException(status_code=400, detail="Usuario ya existe")
 
     hashed_password = hash_password(user.password)
-    users_db[user.username] = {
+    user_doc = {
+        "_id": user.username,
         "username": user.username,
         "email": user.email,
-        "hashed_password": hashed_password,
-        "role": "user"
+        "password": hashed_password,
+        "role": "usuario",  # rol por defecto
+        "created_at": datetime.utcnow().isoformat()
     }
+    users_col.insert_one(user_doc)
 
     return UserResponse(
         id=user.username,
         username=user.username,
         email=user.email,
-        role="user"
+        role="usuario"
     )
 
 @app.post("/auth/login_json", response_model=TokenResponse)
