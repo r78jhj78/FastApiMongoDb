@@ -42,13 +42,21 @@ providers_col = db["providers"]
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-def hash_password(password: str) -> str:
-    max_length = 72
-    # Truncar la contraseña si excede 72 bytes en UTF-8
+def truncate_password(password: str, max_bytes: int = 72) -> str:
     encoded = password.encode('utf-8')
-    if len(encoded) > max_length:
-        encoded = encoded[:max_length]
-        password = encoded.decode('utf-8', 'ignore')  # Ignorar si corta caracteres multibyte
+    if len(encoded) <= max_bytes:
+        return password
+
+    # Truncar byte a byte sin romper UTF-8
+    truncated = encoded[:max_bytes]
+    while True:
+        try:
+            return truncated.decode('utf-8')
+        except UnicodeDecodeError:
+            truncated = truncated[:-1]
+
+def hash_password(password: str) -> str:
+    password = truncate_password(password)
     print(f"Hashing password: '{password}' Length in bytes: {len(password.encode('utf-8'))}")
     return pwd_context.hash(password)
 
