@@ -103,6 +103,10 @@ class ProviderCreate(BaseModel):
     products: list[str]
     location: Optional[str] = None
 
+class LoginInput(BaseModel):
+    username: str
+    password: str
+
 # ---------------------------
 # FastAPI app
 # ---------------------------
@@ -166,13 +170,16 @@ def register(user: UserCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/auth/login", response_model=TokenResponse)
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
+
+
+@app.post("/auth/login_json", response_model=TokenResponse)
+def login_json(data: LoginInput):
+    user = authenticate_user(data.username, data.password)
     if not user:
         raise HTTPException(status_code=400, detail="Usuario o contraseña inválidos")
     token = create_access_token({"sub": user["username"], "role": user["role"]})
     return TokenResponse(access_token=token)
+
 
 # ---------------------------
 # User endpoints
