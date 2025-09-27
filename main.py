@@ -145,13 +145,19 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 # ---------------------------
 @app.post("/auth/register", response_model=UserOut)
 def register(user: UserCreate):
-    doc = create_user(user.username, user.email, user.password)
-    return UserOut(
-        id=doc["_id"],
-        username=doc["username"],
-        email=doc.get("email"),
-        role=doc["role"]
-    )
+    print("👉 Recibido:", user.dict())
+    try:
+        doc = create_user(user.username, user.email, user.password)
+        return UserOut(
+            id=doc["_id"],
+            username=doc["username"],
+            email=doc.get("email"),
+            role=doc["role"]
+        )
+    except Exception as e:
+        print("❌ Error en /auth/register:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/auth/login", response_model=TokenResponse)
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
