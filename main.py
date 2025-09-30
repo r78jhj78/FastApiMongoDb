@@ -337,7 +337,12 @@ from fastapi import Query
 from pydantic import BaseModel, EmailStr, validator
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import Form
+from fastapi import File, Form, UploadFile
+import base64
+import requests
+from bson import ObjectId
 
+IMGBB_API_KEY = os.getenv("IMGBB_API_KEY")
 # ---------------------------
 # Cargar variables de entorno
 # ---------------------------
@@ -462,7 +467,25 @@ class UserResponse(BaseModel):
     email: Optional[EmailStr]
     role: str
 
+class Ingrediente(BaseModel):
+    nombre: str
+    cantidad: float
+    unidad: str
 
+class Paso(BaseModel):
+    orden: int
+    descripcion: str
+    imagen_url: Optional[str] = ""
+
+class RecetaCompleta(BaseModel):
+    titulo: str
+    calorias: int
+    porciones: int
+    imagen_final_url: str
+    ingredientes: list[Ingrediente]
+    pasos: list[Paso]
+    chef: Optional[str] = None
+    created_at: Optional[str] = None
 
 # ---------------------------
 # FastAPI App
@@ -511,6 +534,19 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(401, "Usuario no encontrado")
     return user
 
+def subir_a_imgbb(archivo: UploadFile) -> str:
+    imagen_bytes = archivo.file.read()
+    imagen_base64 = base64.b64encode(imagen_bytes).decode("utf-8")
+
+    response = requests.post(
+        "https://api.imgbb.com/1/upload",
+        data={
+            "key": IMGBB_API_KEY,
+            "image": imagen_base64
+        }
+    )
+    result = response.json()
+    return result["data"]["url"]
 
 # ---------------------------
 # Endpoints de Auth
@@ -606,6 +642,71 @@ def list_recipes(q: Optional[str] = None):
         ]
     return list(recipes_col.find(query, {"_id": 1, "title": 1, "chef": 1, "approved": 1}))
 
+
+@app.post("/recipes/form")
+async def subir_receta_con_formulario(
+    titulo: str = Form(...),
+    calorias: int = Form(...),
+    porciones: int = Form(...),
+    imagen_final: UploadFile = File(...),
+
+    ingredientes: list[str] = Form(...),   # nombres
+    cantidades: list[float] = Form(...),
+    unidades: list[str] = Form(...),
+
+    pasos: list[str] = Form(...),
+    imagenes_pasos: list[UploadFile] = File([]),
+
+    current_user=Depends(get_current_user)
+):
+    if current_user["role"] not in ("chef", "admin"):
+        raise HTTPException(403, "Solo chefs o admin pueden crear recetas")
+
+    try:
+        imagen_final_url = subir_a_imgbb(imagen_final)
+    except:
+        raise HTTPException(500, "Error al subir imagen final a ImgBB")
+
+    # Ingredientes
+    ingredientes_list = []
+    for i in range(len(ingredientes)):
+        ingredientes_list.append({
+            "nombre": ingredientes[i],
+            "cantidad": cantidades[i],
+            "unidad": unidades[i]
+        })
+
+    # Pasos
+    pasos_list = []
+    for i in range(len(pasos)):
+        img_url = ""
+        if i < len(imagenes_pasos) and imagenes_pasos[i].filename != "":
+            try:
+                img_url = subir_a_imgbb(imagenes_pasos[i])
+            except:
+                img_url = ""
+        pasos_list.append({
+            "orden": i + 1,
+            "descripcion": pasos[i],
+            "imagen_url": img_url
+        })
+
+    receta_doc = {
+        "_id": str(ObjectId()),
+        "titulo": titulo,
+        "calorias": calorias,
+        "porciones": porciones,
+        "imagen_final_url": imagen_final_url,
+        "ingredientes": ingredientes_list,
+        "pasos": pasos_list,
+        "chef": current_user["username"],
+        "created_at": datetime.utcnow().isoformat(),
+        "approved": False
+    }
+
+    recipes_col.insert_one(receta_doc)
+
+    return {"status": "ok", "message": "Receta guardada", "id": receta_doc["_id"]}
 
 # ---------------------------
 # Providers
