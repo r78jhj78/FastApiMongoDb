@@ -370,6 +370,18 @@ providers_col = db["providers"]
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(title="Cam Cook API")
+
+# Configuración CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000"],  # o ["*"] para permitir todos los orígenes (en desarrollo)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 MAX_PASSWORD_LENGTH = 72
 
