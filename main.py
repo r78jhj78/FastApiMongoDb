@@ -340,6 +340,7 @@ from fastapi import Form
 from fastapi import File, Form, UploadFile
 import base64
 import requests
+from typing import List
 from bson import ObjectId
 
 IMGBB_API_KEY = os.getenv("IMGBB_API_KEY")
@@ -424,15 +425,15 @@ class RoleChangeRequest(BaseModel):
 
 class RecipeCreate(BaseModel):
     title: str
-    ingredients: list[str]
-    steps: list[str]
+    ingredients: List[str]
+    steps: List[str]
     chef_username: Optional[str] = None
 
 
 class ProviderCreate(BaseModel):
     name: str
     contact: str
-    products: list[str]
+    products: List[str]
     location: Optional[str] = None
 
 
@@ -482,8 +483,8 @@ class RecetaCompleta(BaseModel):
     calorias: int
     porciones: int
     imagen_final_url: str
-    ingredientes: list[Ingrediente]
-    pasos: list[Paso]
+    ingredientes: List[Ingrediente]
+    pasos: List[Paso]
     chef: Optional[str] = None
     created_at: Optional[str] = None
 
@@ -650,12 +651,12 @@ async def subir_receta_con_formulario(
     porciones: int = Form(...),
     imagen_final: UploadFile = File(...),
 
-    ingredientes: list[str] = Form(...),   # nombres
-    cantidades: list[float] = Form(...),
-    unidades: list[str] = Form(...),
+    ingredientes: List[str] = Form(...),   # nombres
+    cantidades: List[float] = Form(...),
+    unidades: List[str] = Form(...),
 
-    pasos: list[str] = Form(...),
-    imagenes_pasos: list[UploadFile] = File([]),
+    pasos: List[str] = Form(...),
+    imagenes_pasos: List[UploadFile] = File([]),
 
     current_user=Depends(get_current_user)
 ):
