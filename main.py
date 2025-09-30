@@ -429,6 +429,7 @@ class UserOut(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    role: str 
 
 
 class RoleChangeRequest(BaseModel):
@@ -594,9 +595,16 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     if not user or not verify_password(form_data.password, user["password"]):
         raise HTTPException(status_code=400, detail="Usuario o contraseña incorrectos")
 
-    access_token = create_access_token(data={"sub": user["username"]})
-    return TokenResponse(access_token=access_token, token_type="bearer")
+    access_token = create_access_token(data={
+        "sub": user["username"],
+        "role": user.get("role", "usuario")  # ← incluye el rol
+    })
 
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        role=user.get("role", "usuario")  # ← útil para el frontend
+    )
 # ---------------------------
 # User endpoints
 # ---------------------------
@@ -611,12 +619,14 @@ def me(current_user=Depends(get_current_user)):
 
 
 @app.post("/users/upgrade", response_model=UserOut)
-def upgrade_role(req: RoleChangeRequest, current_user=Depends(get_current_user)):
+async def upgrade_role(req: RoleChangeRequest, current_user=Depends(get_current_user)):
     new_role = req.new_role.lower()
     if new_role not in ("chef", "proveedor"):
         raise HTTPException(400, "Rol inválido. Solo 'chef' o 'proveedor'")
-    users_col.update_one({"_id": current_user["_id"]}, {"$set": {"role": new_role}})
-    updated = get_user_by_username(current_user["username"])
+
+    await users_col.update_one({"_id": current_user["_id"]}, {"$set": {"role": new_role}})
+    updated = await get_user_by_username(current_user["username"])
+
     return UserOut(
         id=updated["_id"],
         username=updated["username"],
